@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef0f3">
+<title>Grid Watt — UK Carbon Intensity</title>
+
+<!-- PWA / "Add to Home Screen" support -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Grid Watt">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eef0f3;
+    --panel:#ffffff;
+    --panel-2:#f3f4f7;
+    --line:#e7e9ee;
+    --text:#1a1d24;
+    --text-dim:#6b7280;
+    --text-faint:#9aa1ad;
+    --very-low:#9ec24f;
+    --low:#c7d666;
+    --moderate:#f0c454;
+    --high:#e8905a;
+    --very-high:#d97a4d;
+    --accent:#4a4a4a;
+    --shadow: 0 1px 2px rgba(20,20,30,0.03), 0 10px 28px rgba(20,20,30,0.06);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:'Quicksand', system-ui, sans-serif; overscroll-behavior-y: contain;}
+  body{
+    min-height:100vh;
+    padding-bottom: 48px;
+  }
+  select#region-select{
+    width:100%; background:var(--panel); border:none;
+    color:var(--text); font-family:inherit; font-size:14px; font-weight:600; padding:12px 14px; border-radius:12px;
+    appearance:none; -webkit-appearance:none; box-shadow:var(--shadow);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.4'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position: right 14px center;
+  }
+  #region-picker{margin-top:14px;}
+  #region-picker label{display:block; font-size:12px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.08em; padding:0 6px 8px;}
+
+  main{padding:max(14px, env(safe-area-inset-top)) 16px 0; max-width:640px; margin:0 auto;}
+
+  /* ---- Hero: plain, on page background, no card ---- */
+  .hero{ text-align:center; padding:10px 8px 8px; }
+  .hero-index{
+    font-size:23px; font-weight:800; line-height:1.05; letter-spacing:-0.01em; margin:0;
+    color:var(--text);
+  }
+  .hero-now{ margin:4px 0 0; font-size:13px; font-weight:600; color:var(--text-faint); }
+
+  /* ---- Chart cards ---- */
+  section.card{
+    background:var(--panel); border:none; border-radius:22px; padding:18px 16px 14px;
+    margin-top:14px; box-shadow:var(--shadow);
+  }
+  .card-title-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .card-title{display:flex; align-items:center; gap:9px; font-size:19px; font-weight:700; color:var(--text);}
+  .sparkle{width:20px; height:20px; flex:none; color:var(--text-faint);}
+  .card-caption{margin:8px 2px 14px; font-size:14px; font-weight:600; color:var(--text-faint); line-height:1.4;}
+
+  .chart-wrap{position:relative;}
+  svg.chart{display:block; width:100%; height:auto; overflow:visible; touch-action: pan-y;}
+  .gridline{stroke:var(--line); stroke-width:1;}
+  .now-line{stroke:var(--text-dim); stroke-width:1.4; stroke-dasharray:3 3;}
+  .now-ring{fill:none; stroke:var(--text-dim); stroke-width:2;}
+  .axis-label{fill:var(--text-faint); font-family:'Quicksand', sans-serif; font-weight:600;}
+  .tooltip{
+    position:absolute; pointer-events:none; background:var(--text); border:none;
+    border-radius:10px; padding:8px 11px; font-size:12.5px; color:#fff; white-space:nowrap;
+    transform:translate(-50%,-118%); opacity:0; transition:opacity .1s; z-index:5;
+    box-shadow:0 8px 24px rgba(20,26,43,0.2); font-weight:600;
+  }
+  .tooltip .tt-val{font-weight:700; font-size:14px;}
+  .tooltip .tt-time{color:rgba(255,255,255,0.65); margin-top:1px; font-weight:500;}
+
+  /* ---- Below-the-fold "more info" section ---- */
+  #more-info{margin-top:30px;}
+  #more-info .section-label{
+    font-size:12px; font-weight:700; color:var(--text-faint); text-transform:uppercase;
+    letter-spacing:0.08em; padding:0 6px 8px; margin-top:22px;
+  }
+  #more-info .section-label:first-child{margin-top:0;}
+
+  .best-window{
+    padding:14px 16px; border-radius:18px; background:rgba(158,194,79,0.14);
+    font-size:13.5px; font-weight:600; color:var(--text); display:flex; gap:10px; align-items:center;
+    box-shadow:var(--shadow);
+  }
+  .best-window svg{flex:none;}
+  .best-window b{color:#5f8a1f;}
+
+  .legend{display:flex; gap:12px; flex-wrap:wrap; padding:2px 6px; font-size:12px; font-weight:600; color:var(--text-faint);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+
+  .mix-list{list-style:none; margin:0; padding:0;}
+  .mix-list li{display:flex; align-items:center; gap:10px; padding:9px 4px;}
+  .mix-list li + li{border-top:1px solid var(--line);}
+  .mix-dot{width:10px; height:10px; border-radius:3px; flex:none;}
+  .mix-name{flex:none; width:78px; font-size:14px; font-weight:600; color:var(--text-dim); text-transform:capitalize; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mix-bar-track{flex:1; min-width:0; height:6px; border-radius:3px; background:var(--panel-2); overflow:hidden;}
+  .mix-bar-fill{display:block; height:100%; border-radius:3px;}
+  .mix-pct{flex:none; width:46px; text-align:right; font-size:13.5px; font-weight:700;}
+
+  footer{max-width:640px; margin:26px auto 0; padding:0 22px; font-size:12px; font-weight:500; color:var(--text-faint); line-height:1.6; text-align:center;}
+  footer a{color:var(--text-dim);}
+
+  #status{
+    max-width:640px; margin:0 auto; padding:0 16px;
+  }
+  .msg{margin-top:14px; padding:16px; border-radius:16px; background:var(--panel); font-size:14px; font-weight:600; color:var(--text-dim); box-shadow:var(--shadow); text-align:center;}
+  .msg.err{color:#b3241f;}
+</style>
+</head>
+<body>
+
+<main id="status">
+  <div id="content" style="display:none;">
+    <div class="hero" id="hero">
+      <p class="hero-index" id="hero-index">—</p>
+      <p class="hero-now" id="hero-now">—</p>
+    </div>
+
+    <div id="chart-section">
+      <section class="card chart-card">
+        <div class="card-title-row">
+          <div class="card-title">
+            <svg class="sparkle" viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="6" r="1.4"/><circle cx="12" cy="4" r="1"/><circle cx="18" cy="7" r="1.6"/><circle cx="5" cy="13" r="1"/><circle cx="12" cy="11" r="1.8"/><circle cx="19" cy="13" r="1"/><circle cx="7" cy="19" r="1.2"/><circle cx="14" cy="18" r="1"/></svg>
+            Today&rsquo;s forecast
+          </div>
+        </div>
+        <div class="chart-wrap" id="chart-wrap-1" style="margin-top:14px;">
+          <svg class="chart" id="chart-1" viewBox="0 0 640 350" preserveAspectRatio="none"></svg>
+          <div class="tooltip" id="tooltip-1"></div>
+        </div>
+      </section>
+
+      <section class="card chart-card">
+        <div class="card-title-row">
+          <div class="card-title">
+            <svg class="sparkle" viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="6" r="1.4"/><circle cx="12" cy="4" r="1"/><circle cx="18" cy="7" r="1.6"/><circle cx="5" cy="13" r="1"/><circle cx="12" cy="11" r="1.8"/><circle cx="19" cy="13" r="1"/><circle cx="7" cy="19" r="1.2"/><circle cx="14" cy="18" r="1"/></svg>
+            Tomorrow&rsquo;s forecast
+          </div>
+        </div>
+        <div class="chart-wrap" id="chart-wrap-2" style="margin-top:14px;">
+          <svg class="chart" id="chart-2" viewBox="0 0 640 350" preserveAspectRatio="none"></svg>
+          <div class="tooltip" id="tooltip-2"></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="region-picker">
+      <label for="region-select">Region</label>
+      <select id="region-select" aria-label="Select GB region"></select>
+    </div>
+
+    <div id="more-info">
+      <div class="section-label">More detail</div>
+
+      <div class="best-window" id="best-window" style="display:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5f8a1f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+        <span id="best-window-text">—</span>
+      </div>
+
+      <section class="card" style="margin-top:12px;">
+        <div class="card-title" style="font-size:16px; margin-bottom:10px;">Chart key</div>
+        <div class="legend">
+          <span><i style="background:var(--very-low)"></i>Very low</span>
+          <span><i style="background:var(--low)"></i>Low</span>
+          <span><i style="background:var(--moderate)"></i>Moderate</span>
+          <span><i style="background:var(--high)"></i>High</span>
+          <span><i style="background:var(--very-high)"></i>Very high</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title" style="font-size:16px;">Current generation mix</div>
+        <p class="card-caption" id="mix-region-name" style="margin-bottom:8px;">—</p>
+        <ul class="mix-list" id="mix-list"></ul>
+      </section>
+
+      <footer>
+        Data: <a href="https://carbonintensity.org.uk" target="_blank" rel="noopener">National Energy System Operator (NESO) Carbon Intensity API</a>, CC BY 4.0.
+        Forecast updates roughly every 30 minutes. Regional boundaries follow Distribution Network Operator (DNO) areas.
+        <span id="hero-updated">—</span>
+      </footer>
+    </div>
+  </div>
+
+  <div id="loading" class="msg">Fetching latest forecast from the NESO Carbon Intensity API…</div>
+  <div id="error" class="msg err" style="display:none;"></div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var REGIONS = [
+    {id:1, name:"North Scotland"},
+    {id:2, name:"South Scotland"},
+    {id:3, name:"North West England"},
+    {id:4, name:"North East England"},
+    {id:5, name:"Yorkshire"},
+    {id:6, name:"North Wales & Merseyside"},
+    {id:7, name:"South Wales"},
+    {id:8, name:"West Midlands"},
+    {id:9, name:"East Midlands"},
+    {id:10, name:"East England"},
+    {id:11, name:"South West England"},
+    {id:12, name:"South England"},
+    {id:13, name:"London"},
+    {id:14, name:"South East England"},
+    {id:15, name:"England"},
+    {id:16, name:"Scotland"},
+    {id:17, name:"Wales"}
+  ];
+  var INDEX_COLOR = {
+    "very low": "#2ee6a6",
+    "low": "#8de65a",
+    "moderate": "#f2c94c",
+    "high": "#f2884c",
+    "very high": "#f0554e"
+  };
+  var FUEL_COLOR = {
+    wind:"#4fc3ff", solar:"#f2c94c", nuclear:"#a78bfa", hydro:"#2ee6a6",
+    biomass:"#8de65a", gas:"#f2884c", coal:"#f0554e", imports:"#5b6c85", other:"#8fa0b8"
+  };
+
+  var state = { regionId: 12, data: null, refreshTimer: null };
+
+  var els = {
+    select: document.getElementById('region-select'),
+    content: document.getElementById('content'),
+    loading: document.getElementById('loading'),
+    error: document.getElementById('error'),
+    heroIndex: document.getElementById('hero-index'),
+    heroNow: document.getElementById('hero-now'),
+    heroUpdated: document.getElementById('hero-updated'),
+    bestWindow: document.getElementById('best-window'),
+    bestWindowText: document.getElementById('best-window-text'),
+    chart1: document.getElementById('chart-1'),
+    chart2: document.getElementById('chart-2'),
+    tooltip1: document.getElementById('tooltip-1'),
+    tooltip2: document.getElementById('tooltip-2'),
+    mixList: document.getElementById('mix-list'),
+    mixRegionName: document.getElementById('mix-region-name')
+  };
+
+  function buildRegionPicker(){
+    REGIONS.forEach(function(r){
+      var opt = document.createElement('option');
+      opt.value = r.id; opt.textContent = r.name;
+      if(r.id === state.regionId) opt.selected = true;
+      els.select.appendChild(opt);
+    });
+    els.select.addEventListener('change', function(){ selectRegion(parseInt(els.select.value,10)); });
+  }
+
+  function selectRegion(id){
+    state.regionId = id;
+    els.select.value = id;
+    load();
+  }
+
+  function fmtTime(iso){
+    var d = new Date(iso);
+    return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+  function fmtDayTime(iso){
+    var d = new Date(iso);
+    return d.toLocaleDateString([], {weekday:'short'}) + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+  function pad2(n){ return (n<10?'0':'')+n; }
+
+  // Local (device) midnight, offset by whole days. Used to lock chart windows
+  // to calendar days rather than a rolling "now + Nh" window.
+  function localMidnight(offsetDays){
+    var d = new Date();
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() + (offsetDays||0));
+    return d;
+  }
+  function isoUTC(date){
+    return date.getUTCFullYear() + '-' + pad2(date.getUTCMonth()+1) + '-' + pad2(date.getUTCDate()) +
+      'T' + pad2(date.getUTCHours()) + ':' + pad2(date.getUTCMinutes()) + 'Z';
+  }
+
+  function fetchJson(url){
+    return fetch(url, {headers:{'Accept':'application/json'}}).then(function(res){
+      if(!res.ok) throw new Error('API returned HTTP ' + res.status);
+      return res.json();
+    });
+  }
+
+  // Primary: region-specific endpoint. Fallback: all-regions endpoint, filtered client-side.
+  // NESO's regional forecast endpoints are marked "beta" and the region-specific one
+  // occasionally comes back empty even when the all-regions one is fine.
+  function fetchRegionRange(from, to, regionId){
+    var directUrl = 'https://api.carbonintensity.org.uk/regional/intensity/' + from + '/' + to + '/regionid/' + regionId;
+    return fetchJson(directUrl).then(function(json){
+      if(json.error) throw new Error(json.error.message || 'API error');
+      var region = json.data && json.data[0];
+      if(region && region.data && region.data.length) return region;
+      return fetchAllRegionsFallback(from, to, regionId);
+    }).catch(function(){
+      return fetchAllRegionsFallback(from, to, regionId);
+    });
+  }
+
+  function fetchAllRegionsFallback(from, to, regionId){
+    var allUrl = 'https://api.carbonintensity.org.uk/regional/intensity/' + from + '/' + to;
+    return fetchJson(allUrl).then(function(json){
+      if(json.error) throw new Error(json.error.message || 'API error');
+      var periods = json.data || [];
+      if(!periods.length) throw new Error('NESO API returned no periods at all — it may be temporarily down');
+      var meta = null;
+      var series = periods.map(function(period){
+        var r = (period.regions || []).filter(function(x){ return x.regionid === regionId; })[0];
+        if(r && !meta) meta = r;
+        return r ? {
+          from: period.from, to: period.to,
+          intensity: r.intensity, generationmix: r.generationmix
+        } : null;
+      }).filter(Boolean);
+      if(!meta || !series.length) throw new Error('Region ID ' + regionId + ' not found in NESO response');
+      return { regionid: regionId, dnoregion: meta.dnoregion, shortname: meta.shortname, data: series };
+    });
+  }
+
+  function load(){
+    els.content.style.display = 'none';
+    els.error.style.display = 'none';
+    els.loading.style.display = 'block';
+    els.loading.textContent = 'Fetching latest forecast from the NESO Carbon Intensity API…';
+
+    // Lock to calendar days: today 00:00 through the start of the day after tomorrow,
+    // i.e. all of today plus all of tomorrow in the device's local timezone.
+    var from = isoUTC(localMidnight(0));
+    var to = isoUTC(localMidnight(2));
+
+    fetchRegionRange(from, to, state.regionId)
+      .then(function(region){
+        state.data = region;
+        render(region);
+        els.loading.style.display = 'none';
+        els.content.style.display = 'block';
+      })
+      .catch(function(err){
+        els.loading.style.display = 'none';
+        els.error.style.display = 'block';
+        els.error.textContent = 'Could not load forecast: ' + err.message + '. Pull to refresh or try again shortly.';
+      });
+  }
+
+  function titleCase(s){
+    return (s||'').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+
+  function render(region){
+    var points = region.data;
+    var boundary = localMidnight(1).getTime(); // start of tomorrow, local
+
+    var first24 = points.filter(function(p){ return new Date(p.from).getTime() < boundary; });
+    var second24 = points.filter(function(p){ return new Date(p.from).getTime() >= boundary; });
+
+    // Find the period covering "now" (first period that hasn't ended yet) for the
+    // headline reading and the "now" marker's position within today's chart.
+    var nowMs = Date.now();
+    var nowIdxInFirst = -1;
+    for(var i=0; i<first24.length; i++){
+      if(new Date(first24[i].to).getTime() > nowMs){ nowIdxInFirst = i; break; }
+    }
+    if(nowIdxInFirst === -1) nowIdxInFirst = first24.length - 1;
+    var nowPeriod = first24[nowIdxInFirst] || points[0];
+
+    var idx = (nowPeriod.intensity.index || 'moderate').toLowerCase();
+    els.heroIndex.textContent = titleCase(idx);
+    els.heroNow.textContent = 'Now: ' + ((nowPeriod.intensity.forecast != null) ? nowPeriod.intensity.forecast : '—') + 'g CO₂ / kWh';
+    els.heroUpdated.textContent = (region.shortname || region.dnoregion) + ' · period ' + fmtTime(nowPeriod.from) + '–' + fmtTime(nowPeriod.to) + ' · updates ~every 30 min';
+
+    // find greenest window in the next 12h from now, for a helpful tip
+    var globalNowIdx = points.indexOf(nowPeriod);
+    var horizon = points.slice(Math.max(0,globalNowIdx), globalNowIdx + 24); // 24 * 30min = 12h
+    var best = horizon.reduce(function(a,b){
+      return (b.intensity.forecast < a.intensity.forecast) ? b : a;
+    }, horizon[0] || nowPeriod);
+    if(best && best.from !== nowPeriod.from && best.intensity.forecast < nowPeriod.intensity.forecast * 0.92){
+      els.bestWindow.style.display = 'flex';
+      els.bestWindowText.innerHTML = 'Greener window ahead: <b>' + best.intensity.forecast + ' g</b> around ' + fmtDayTime(best.from);
+    } else {
+      els.bestWindow.style.display = 'none';
+    }
+
+    var maxVal = points.reduce(function(m,p){ return Math.max(m, p.intensity.forecast); }, 0);
+    var minVal = points.reduce(function(m,p){ return Math.min(m, p.intensity.forecast); }, maxVal);
+
+    drawBarChart(els.chart1, els.tooltip1, first24, minVal, maxVal, {nowIndex: nowIdxInFirst});
+    if(second24.length){
+      drawBarChart(els.chart2, els.tooltip2, second24, minVal, maxVal, {});
+    } else {
+      els.chart2.innerHTML = '';
+    }
+
+    renderMix(region, nowPeriod);
+  }
+
+  function drawBarChart(svg, tooltipEl, points, minVal, maxVal, opts){
+    opts = opts || {};
+    var W = 640, H = 350, padTop = 30, padBottom = 40, padL = 40, padR = 6;
+    var plotH = H - padTop - padBottom;
+    var range = Math.max(1, (maxVal - minVal));
+    var lo = 0; // carbon intensity floors naturally at 0
+    var hi = maxVal + range*0.15;
+    var span = hi - lo || 1;
+
+    var plotW = W - padL - padR;
+    var slotW = points.length ? plotW / points.length : plotW;
+    var barW = Math.max(2, slotW * 0.62);
+
+    function xCenter(i){ return padL + slotW*i + slotW/2; }
+    function y(v){ return padTop + (1 - (v - lo)/span) * plotH; }
+
+    var svgns = 'http://www.w3.org/2000/svg';
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.innerHTML = '';
+
+    // horizontal gridlines + value labels, at round 100-unit steps
+    var stepUnit = hi > 500 ? 200 : 100;
+    for(var v=0; v<=hi; v+=stepUnit){
+      var yy = y(v);
+      var line = document.createElementNS(svgns,'line');
+      line.setAttribute('x1', padL); line.setAttribute('x2', W-padR);
+      line.setAttribute('y1', yy); line.setAttribute('y2', yy);
+      line.setAttribute('class','gridline');
+      svg.appendChild(line);
+      var label = document.createElementNS(svgns,'text');
+      label.setAttribute('x', padL-8); label.setAttribute('y', yy+5);
+      label.setAttribute('font-size','15'); label.setAttribute('text-anchor','end');
+      label.setAttribute('class','axis-label');
+      label.textContent = v;
+      svg.appendChild(label);
+    }
+
+    // baseline
+    var baseline = document.createElementNS(svgns,'line');
+    baseline.setAttribute('x1', padL); baseline.setAttribute('x2', W-padR);
+    baseline.setAttribute('y1', y(0)); baseline.setAttribute('y2', y(0));
+    baseline.setAttribute('stroke', '#d5d8de'); baseline.setAttribute('stroke-width','1');
+    svg.appendChild(baseline);
+
+    // bars
+    points.forEach(function(p, i){
+      var val = p.intensity.forecast;
+      var color = INDEX_COLOR[(p.intensity.index||'moderate').toLowerCase()] || INDEX_COLOR.moderate;
+      var barH = Math.max(1, y(0) - y(val));
+      var rect = document.createElementNS(svgns,'rect');
+      rect.setAttribute('x', xCenter(i) - barW/2);
+      rect.setAttribute('y', y(val));
+      rect.setAttribute('width', barW);
+      rect.setAttribute('height', barH);
+      rect.setAttribute('rx', Math.min(2.5, barW/3));
+      rect.setAttribute('fill', color);
+      svg.appendChild(rect);
+    });
+
+    // hour labels every 3 hours, starting at midnight (i.e. on-the-hour slots where hour % 3 === 0)
+    points.forEach(function(p,i){
+      var d = new Date(p.from);
+      if(d.getMinutes()===0 && d.getHours()%3===0){
+        var xx = xCenter(i);
+        var t = document.createElementNS(svgns,'text');
+        t.setAttribute('x', xx); t.setAttribute('y', H-12);
+        t.setAttribute('font-size','19'); t.setAttribute('text-anchor','middle');
+        t.setAttribute('class','axis-label');
+        t.textContent = d.toLocaleTimeString([], {hour:'2-digit', hour12:false});
+        svg.appendChild(t);
+      }
+    });
+
+    // "now" indicator: dashed line with a hollow ring at the top, positioned at
+    // whichever bar represents the current half-hour period (today's chart only)
+    if(opts.nowIndex != null && opts.nowIndex >= 0 && opts.nowIndex < points.length){
+      var nowX = xCenter(opts.nowIndex);
+      var nowLine = document.createElementNS(svgns,'line');
+      nowLine.setAttribute('x1', nowX); nowLine.setAttribute('x2', nowX);
+      nowLine.setAttribute('y1', padTop+2); nowLine.setAttribute('y2', y(0));
+      nowLine.setAttribute('class','now-line');
+      svg.appendChild(nowLine);
+      var ring = document.createElementNS(svgns,'circle');
+      ring.setAttribute('cx', nowX); ring.setAttribute('cy', padTop-9);
+      ring.setAttribute('r', 6.5);
+      ring.setAttribute('class','now-ring');
+      svg.appendChild(ring);
+    }
+
+    // interaction: invisible hit rects per bar
+    var hitLayer = document.createElementNS(svgns,'g');
+    points.forEach(function(p,i){
+      var r = document.createElementNS(svgns,'rect');
+      r.setAttribute('x', padL + slotW*i); r.setAttribute('y', 0);
+      r.setAttribute('width', slotW); r.setAttribute('height', H);
+      r.setAttribute('fill', 'transparent');
+      r.addEventListener('mouseenter', function(){ showTip(tooltipEl, svg, p, xCenter(i), y(p.intensity.forecast)); });
+      r.addEventListener('touchstart', function(){ showTip(tooltipEl, svg, p, xCenter(i), y(p.intensity.forecast)); }, {passive:true});
+      hitLayer.appendChild(r);
+    });
+    svg.addEventListener('mouseleave', function(){ hideTip(tooltipEl); });
+    svg.appendChild(hitLayer);
+  }
+
+  function showTip(tooltipEl, svg, p, xVal, yVal){
+    var rect = svg.getBoundingClientRect();
+    var scaleX = rect.width/640, scaleY = rect.height/350;
+    tooltipEl.style.left = (xVal*scaleX) + 'px';
+    tooltipEl.style.top = (yVal*scaleY) + 'px';
+    tooltipEl.style.opacity = '1';
+    var color = INDEX_COLOR[(p.intensity.index||'moderate').toLowerCase()];
+    tooltipEl.innerHTML = '<div class="tt-val" style="color:'+color+'">'+p.intensity.forecast+' gCO₂/kWh</div><div class="tt-time">'+fmtDayTime(p.from)+' · '+ (p.intensity.index||'') +'</div>';
+  }
+  function hideTip(tooltipEl){ tooltipEl.style.opacity = '0'; }
+
+  function renderMix(region, now){
+    els.mixRegionName.textContent = region.shortname || region.dnoregion;
+    els.mixList.innerHTML = '';
+    var mix = (now.generationmix || []).slice().sort(function(a,b){ return b.perc - a.perc; });
+    mix.forEach(function(f){
+      var li = document.createElement('li');
+      var color = FUEL_COLOR[f.fuel] || '#8fa0b8';
+      li.innerHTML =
+        '<span class="mix-dot" style="background:'+color+'"></span>' +
+        '<span class="mix-name">'+f.fuel+'</span>' +
+        '<span class="mix-bar-track"><span class="mix-bar-fill" style="width:'+Math.min(100,f.perc)+'%; background:'+color+'"></span></span>' +
+        '<span class="mix-pct mono">'+f.perc.toFixed(1)+'%</span>';
+      els.mixList.appendChild(li);
+    });
+  }
+
+  // auto-refresh every 30 minutes, matching the data's own update cadence,
+  // or whenever the person manually reloads the page.
+  function scheduleRefresh(){
+    if(state.refreshTimer) clearInterval(state.refreshTimer);
+    state.refreshTimer = setInterval(load, 30 * 60 * 1000);
+  }
+
+  buildRegionPicker();
+  load();
+  scheduleRefresh();
+})();
+</script>
+</body>
+</html>
