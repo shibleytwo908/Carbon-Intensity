@@ -1,6 +1,6 @@
 {
-  "name": "Grid Watt — UK Carbon Intensity",
-  "short_name": "Grid Watt",
+  "name": "UK Carbon Intensity",
+  "short_name": "CarbIn",
   "description": "48-hour UK grid carbon intensity forecast by region, from NESO.",
   "start_url": "./index.html",
   "scope": "./",
