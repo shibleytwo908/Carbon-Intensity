@@ -531,18 +531,30 @@
       svg.appendChild(ring);
     }
 
-    // interaction: invisible hit rects per bar
+    // interaction: invisible hit rects per bar. Tapping the active bar again,
+    // or tapping anywhere outside a bar, dismisses the tooltip (see the
+    // document-level dismiss listener set up once at the bottom of the script).
     var hitLayer = document.createElementNS(svgns,'g');
+    var activeIndex = -1;
     points.forEach(function(p,i){
       var r = document.createElementNS(svgns,'rect');
       r.setAttribute('x', padL + slotW*i); r.setAttribute('y', 0);
       r.setAttribute('width', slotW); r.setAttribute('height', H);
       r.setAttribute('fill', 'transparent');
-      r.addEventListener('mouseenter', function(){ showTip(tooltipEl, svg, p, xCenter(i), y(p.intensity.forecast)); });
-      r.addEventListener('touchstart', function(){ showTip(tooltipEl, svg, p, xCenter(i), y(p.intensity.forecast)); }, {passive:true});
+      r.setAttribute('class', 'bar-hit');
+      r.addEventListener('mouseenter', function(){ showTip(tooltipEl, svg, p, xCenter(i), y(p.intensity.forecast)); activeIndex = i; });
+      r.addEventListener('touchstart', function(){
+        if(activeIndex === i){
+          hideTip(tooltipEl);
+          activeIndex = -1;
+        } else {
+          showTip(tooltipEl, svg, p, xCenter(i), y(p.intensity.forecast));
+          activeIndex = i;
+        }
+      }, {passive:true});
       hitLayer.appendChild(r);
     });
-    svg.addEventListener('mouseleave', function(){ hideTip(tooltipEl); });
+    svg.addEventListener('mouseleave', function(){ hideTip(tooltipEl); activeIndex = -1; });
     svg.appendChild(hitLayer);
   }
 
@@ -642,6 +654,15 @@
       startY = null;
     }, {passive:true});
   })();
+
+  // Tapping anywhere that isn't a chart bar dismisses any open tooltip —
+  // covers taps on the page background, cards, or the other chart.
+  document.addEventListener('touchstart', function(e){
+    if(!e.target.closest || !e.target.closest('.bar-hit')){
+      hideTip(els.tooltip1);
+      hideTip(els.tooltip2);
+    }
+  }, {passive:true});
 
   buildRegionPicker();
   load();
